@@ -17,6 +17,8 @@ var serverv1 = require('./routes/serverv1');
 var expressions = require('./routes/expressions');
 var expressionsv1 = require('./routes/expressionsv1');
 
+var andes = require('./routes/andes');
+
 var accessControlConfig = {
     "allowOrigin": "*",
     "allowMethods": "GET,POST,PUT,DELETE,HEAD,OPTIONS"
@@ -65,6 +67,7 @@ app.use(function(req, res, next) {
 
 app.use('/', routes);
 app.use('/snomed', snomed);
+app.use('/andes', andes);
 app.use('/v2/snomed', snomed);
 app.use('/v1/snomed', snomedv1);
 app.use('/util', util);
@@ -105,33 +108,33 @@ app.use(function(err, req, res, next) {
 var cluster = require('cluster');
 var port = process.env.PORT || 3000;
 
-if (cluster.isMaster) {
-    fs.writeFile(pidFile, process.pid);
-    var numWorkers = require('os').cpus().length;
+// if (cluster.isMaster) {
+//     // fs.writeFile(pidFile, process.pid);
+//     var numWorkers = require('os').cpus().length;
+//     numWorkers = 1
+//     console.log('Master cluster setting up ' + numWorkers + ' workers...');
 
-    console.log('Master cluster setting up ' + numWorkers + ' workers...');
+//     for (var i = 0; i < numWorkers; i++) {
+//         cluster.fork();
+//     }
 
-    for (var i = 0; i < numWorkers; i++) {
-        cluster.fork();
-    }
+//     cluster.on('online', function(worker) {
+//         console.log('Worker ' + worker.process.pid + ' is online');
+//     });
 
-    cluster.on('online', function(worker) {
-        console.log('Worker ' + worker.process.pid + ' is online');
-    });
-
-    cluster.on('exit', function(worker, code, signal) {
-        console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
-        console.log('Starting a new worker');
-        cluster.fork();
-    });
-} else {
+//     cluster.on('exit', function(worker, code, signal) {
+//         console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
+//         console.log('Starting a new worker');
+//         cluster.fork();
+//     });
+// } else {
     //var app = require('express')();
     // app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
 
     var server = app.listen(port, function() {
         console.log('Process ' + process.pid + ' is listening in port ' + port + ' to all incoming requests');
     });
-}
+// }
 
 // var server = require('http').Server(app);
 //

@@ -5,9 +5,9 @@ var MongoClient = require('mongodb').MongoClient;
 var snomedLib = require("../lib/snomedv2");
 var apiModelUtility = require("../lib/apiModelUtility");
 
-var logger = new(winston.Logger)({
+var logger = new (winston.Logger)({
     transports: [
-        new(winston.transports.File)({ filename: '/root/concepts-json/node_modules/sct-snapshot-rest-api/search.log' })
+        new (winston.transports.File)({ filename: '/root/concepts-json/node_modules/sct-snapshot-rest-api/search.log' })
     ]
 });
 
@@ -19,13 +19,13 @@ var databases = {};
 
 var mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
 
-var performMongoDbRequest = function(databaseName, callback) {
+var performMongoDbRequest = function (databaseName, callback) {
     if (databases[databaseName]) {
         //console.log("Using cache");
         callback(databases[databaseName]);
     } else {
         //console.log("Connecting");
-        MongoClient.connect("mongodb://" + mongoConnection + "/" + databaseName, function(err, db) {
+        MongoClient.connect("mongodb://" + mongoConnection + "/" + databaseName, function (err, db) {
             if (err) {
                 console.warn(err.message);
                 process.exit();
@@ -37,7 +37,7 @@ var performMongoDbRequest = function(databaseName, callback) {
     }
 }
 
-router.get('/:db/:collection/concepts/:sctid', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid', function (req, res) {
     var options = req.params.options || {};
     var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
     for (o in req.query) {
@@ -45,7 +45,7 @@ router.get('/:db/:collection/concepts/:sctid', function(req, res) {
             options[o] = JSON.parse(req.query[o]);
         }
     }
-    snomedLib.getConcept(req.params.db, req.params.collection, req.params.sctid, options, function(err, doc) {
+    snomedLib.getConcept(req.params.db, req.params.collection, req.params.sctid, options, function (err, doc) {
         if (doc) {
             res.status(200);
             res.header('Content-Type', 'application/json');
@@ -57,7 +57,7 @@ router.get('/:db/:collection/concepts/:sctid', function(req, res) {
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', function (req, res) {
     var descId = false;
     if (req.params.descriptionId) descId = req.params.descriptionId;
     var options = req.params.options || {};
@@ -71,13 +71,13 @@ router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', func
             }
         }
     }
-    snomedLib.getDescriptions(req.params.db, req.params.collection, req.params.sctid, descId, options, function(err, docs) {
+    snomedLib.getDescriptions(req.params.db, req.params.collection, req.params.sctid, descId, options, function (err, docs) {
         res.status(200);
         res.send(docs);
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/relationships?', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid/relationships?', function (req, res) {
     var form = "all";
     if (req.query["form"]) {
         form = req.query["form"];
@@ -90,13 +90,13 @@ router.get('/:db/:collection/concepts/:sctid/relationships?', function(req, res)
         }
     }
 
-    snomedLib.getRelationShips(req.params.db, req.params.collection, req.params.sctid, form, options, function(err, docs) {
+    snomedLib.getRelationShips(req.params.db, req.params.collection, req.params.sctid, form, options, function (err, docs) {
         res.status(200);
         res.send(docs);
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/children?', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid/children?', function (req, res) {
     var idParamStr = req.params.sctid;
     var query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "type.conceptId": "116680003", "active": true } } };
     if (req.query["form"]) {
@@ -134,14 +134,24 @@ router.get('/:db/:collection/concepts/:sctid/children?', function(req, res) {
         }
     }
     options["fields"] = { "preferredTerm": 1, "conceptId": 1, "active": 1, "definitionStatus": 1, "module": 1, "isLeafInferred": 1, "isLeafStated": 1, "statedDescendants": 1, "inferredDescendants": 1, "v": 1 };
-    snomedLib.getObject(req.params.db, req.params.collection, query, options, function(err, docs) {
+    snomedLib.getObject(req.params.db, req.params.collection, query, options, function (err, docs) {
         res.status(200);
         if (!docs) docs = [];
         res.send(docs);
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/references?', function(req, res) {
+router.get('/:db/:collection/concepts', function (req, res) {
+    var cts = Array.isArray(req.query.sctids) ? req.query.sctids : [req.query.sctids];
+    var query = { conceptId: { $in: cts } };
+    snomedLib.getObject(req.params.db, req.params.collection, query, {}, function (err, docs) {
+        if (!docs) docs = [];
+        res.status(200);
+        res.send(docs);
+    });
+});
+
+router.get('/:db/:collection/concepts/:sctid/references?', function (req, res) {
     var idParamStr = req.params.sctid;
     var query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "active": true } } };
     var options = req.params.options || {};
@@ -165,14 +175,14 @@ router.get('/:db/:collection/concepts/:sctid/references?', function(req, res) {
     query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "characteristicType.conceptId": typeId, "active": true } } };
     options["fields"] = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "characteristicType.conceptId": typeId, "active": true } }, "preferredTerm": 1, "conceptId": 1, "active": 1, "definitionStatus": 1, "effectiveTime": 1, "module": 1, "isLeafInferred": 1, "isLeafStated": 1, "statedDescendants": 1, "inferredDescendants": 1, "v": 1 };
 
-    snomedLib.getObject(req.params.db, req.params.collection, query, options, function(err, docs) {
+    snomedLib.getObject(req.params.db, req.params.collection, query, options, function (err, docs) {
         if (!docs) docs = [];
         res.status(200);
         res.send(docs);
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/parents?', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid/parents?', function (req, res) {
     var options = req.params.options || {};
     var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
     for (o in req.query) {
@@ -181,14 +191,14 @@ router.get('/:db/:collection/concepts/:sctid/parents?', function(req, res) {
         }
     }
     options["fields"] = { "relationships": 1, "v": 1 };
-    snomedLib.getParents(req.params.db, req.params.collection, req.params.sctid, req.query["form"], options, function(err, docs) {
+    snomedLib.getParents(req.params.db, req.params.collection, req.params.sctid, req.query["form"], options, function (err, docs) {
         if (!docs) docs = [];
         res.status(200);
         res.send(docs);
     });
 });
 
-router.get('/:db/:collection/concepts/:sctid/members?', function(req, res) {
+router.get('/:db/:collection/concepts/:sctid/members?', function (req, res) {
     var options = req.params.options || {};
     var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
     for (o in req.query) {
@@ -203,7 +213,7 @@ router.get('/:db/:collection/concepts/:sctid/members?', function(req, res) {
     if (!options.skip) {
         options.skip = 0;
     }
-    snomedLib.getMembers(req.params.db, req.params.collection, req.params.sctid, options, function(err, docs) {
+    snomedLib.getMembers(req.params.db, req.params.collection, req.params.sctid, options, function (err, docs) {
         if (err) {
             res.status(400);
             if (typeof err == 'boolean') {
@@ -218,13 +228,12 @@ router.get('/:db/:collection/concepts/:sctid/members?', function(req, res) {
     });
 });
 
-router.get('/:db/:collection/descriptions/:sctid?', function(req, res) {
+router.get('/:db/:collection/descriptions/:sctid?', function (req, res) {
     var idParamStr = null;
     var query = { 'descriptions.descriptionId': 0 };
     var searchMode = "regex";
     var searchTerm = null;
     var lang = "english";
-
     if (req.query["lang"]) {
         lang = req.query["lang"];
     }
@@ -259,7 +268,7 @@ router.get('/:db/:collection/descriptions/:sctid?', function(req, res) {
                     query = { "$and": [], "active": true, "conceptActive": true };
                 }
 
-                words.forEach(function(word) {
+                words.forEach(function (word) {
                     if (req.query["normalize"] && req.query["normalize"] == "true") {
                         var expWord = "^" + removeDiacritics(regExpEscape(word).toLowerCase()) + ".*";
                         //console.log("Normalizing");
@@ -346,7 +355,7 @@ router.get('/:db/:collection/descriptions/:sctid?', function(req, res) {
     options["limit"] = 10000000;
 
     if (searchMode == "regex" || searchMode == "partialMatching" || searchMode == "fullText") {
-        snomedLib.searchDescription(req.params.db, req.params.collection, filters, query, options, function(err, docs) {
+        snomedLib.searchDescription(req.params.db, req.params.collection, filters, query, options, function (err, docs) {
             res.status(200);
             res.send(docs);
         });
@@ -356,7 +365,7 @@ router.get('/:db/:collection/descriptions/:sctid?', function(req, res) {
     }
 });
 
-var levDist = function(s, t) {
+var levDist = function (s, t) {
     var d = []; //2d matrix
 
     // Step 1
@@ -491,7 +500,7 @@ var defaultDiacriticsRemovalMap = [
 ];
 var changes;
 
-var removeDiacritics = function(str) {
+var removeDiacritics = function (str) {
     if (!changes) {
         changes = defaultDiacriticsRemovalMap;
     }
@@ -501,12 +510,12 @@ var removeDiacritics = function(str) {
     return str;
 };
 
-var regExpEscape = function(s) {
+var regExpEscape = function (s) {
     return String(s).replace(/([-()\[\]{}+?*.$\^|,:#<!\\])/g, '\\$1').
-    replace(/\x08/g, '\\x08');
+        replace(/\x08/g, '\\x08');
 };
 
-var getTime = function() {
+var getTime = function () {
     var currentdate = new Date();
     var datetime = "Last Sync: " + currentdate.getDate() + "/" +
         (currentdate.getMonth() + 1) + "/" +

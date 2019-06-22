@@ -3,9 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "PORT=3001 MONGO_DB_CONN=localhost:27018 node app.js"
   },
   "dependencies": {
+    "@google/maps": "^0.5.5",
     "body-parser": "~1.17.1",
     "connect-timeout": "^1.7.0",
     "cookie-parser": "~1.4.3",
