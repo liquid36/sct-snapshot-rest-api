@@ -110,7 +110,7 @@ async function makeUnwindQuery(conceptsIds, start, end, organizacion) {
         $match['end'] = { $gt: end.toDate() };
     }
     if (organizacion) {
-        $match['organizacion.id'] = ObjectID(organizacion);
+        $match['organizacion.id'] = organizacion;
     }
 
     const $facet = {};
@@ -144,7 +144,7 @@ async function makeShortQuery(conceptsIds, start, end, organizacion) {
         $match['end'] = { $lte: end.toDate() };
     }
     if (organizacion) {
-        $match['organizacion.id'] = ObjectID(organizacion);
+        $match['organizacion.id'] = organizacion;
     }
 
     const $facet = {};
@@ -164,30 +164,45 @@ router.post('/rup', async function (req, res) {
     const conceptsIds = req.body.concepts;
     const start = getDate(req.body.start);
     const end = getDate(req.body.end);
-    const organizacion = req.body.organizacion;
+    const organizacion = req.body.organizacion ? ObjectID(req.body.organizacion) : null;
 
-    let ini, fin, middleStart, middleEnd;
-    if (start) {
-        ini = start.startOf('day').clone();
-        middleStart = start.clone().endOf('week');
+    const conceptInCache = await findInCache(organizacion, start, end, conceptsIds);
+    const realConcepts = conceptsIds.filter(c => !conceptInCache[c]);
+
+    if (realConcepts.length > 0) {
+        let ini, fin, middleStart, middleEnd;
+        if (start) {
+            ini = start.startOf('day').clone();
+            middleStart = start.clone().endOf('week');
+        }
+
+        if (end) {
+            fin = end.endOf('day').clone();
+            middleEnd = end.clone().startOf('week');
+        }
+        let data = await makeShortQuery(realConcepts, middleStart, middleEnd, organizacion);
+        if (ini) {
+            const dd = await makeUnwindQuery(realConcepts, ini, middleStart, organizacion);
+            data = combinarConceptos(realConcepts, data, dd);
+        }
+
+        if (fin) {
+            const dd = await makeUnwindQuery(realConcepts, middleEnd, fin, organizacion);
+            data = combinarConceptos(realConcepts, data, dd);
+        }
+        conceptsIds.forEach(key => {
+            if (!data[key]) data[key] = conceptInCache[key];
+        });
+
+        res.json(data);
+
+        Object.keys(data).forEach(key => {
+            storeInCache(organizacion, start, end, key, data[key]);
+        });
+    } else {
+        res.json(conceptInCache);
     }
 
-    if (end) {
-        fin = end.endOf('day').clone();
-        middleEnd = end.clone().startOf('week');
-    }
-    let data = await makeShortQuery(conceptsIds, middleStart, middleEnd, organizacion);
-    if (ini) {
-        const dd = await makeUnwindQuery(conceptsIds, ini, middleStart, organizacion);
-        data = combinarConceptos(conceptsIds, data, dd);
-    }
-
-    if (fin) {
-        const dd = await makeUnwindQuery(conceptsIds, middleEnd, fin, organizacion);
-        data = combinarConceptos(conceptsIds, data, dd);
-    }
-
-    return res.json(data);
 
 });
 
@@ -288,138 +303,242 @@ router.get('/organizaciones', async function (req, res) {
     return res.json(orgs);
 })
 
-router.post('/rup/demografia', function (req, res) {
-    performMongoDbRequest((db) => {
-        // const PrestacionesTx = db.collection('prestacionesTx');
-        const PrestacionesTx = db.collection('prestaciontx2');
-        const conceptId = req.body.conceptId;
+router.post('/rup/demografia', async function (req, res) {
+    const db = await getConnection();
+    const PrestacionesTx = db.collection('prestaciontx2');
+    const conceptId = req.body.conceptId;
+    const rangoEtario = req.body.rango;
 
+    const filtros = {};
+    const postFiltros = {};
+    const start = getDate(req.body.start);
+    const end = getDate(req.body.end);
+    const organizacion = req.body.organizacion ? ObjectID(req.body.organizacion) : null;
 
-        const pipeline = [
-            {
-                $match: {
-                    $or: [
-                        { 'concepto.conceptId': conceptId },
-                        { 'concepto.statedAncestors': conceptId }
-                    ]
+    if (organizacion) {
+        filtros['organizacion.id'] = organizacion;
+    }
+    if (start) {
+        filtros['start'] = { $gte: start.startOf('week').toDate() };
+        postFiltros['start'] = { $gte: start.startOf('day').toDate() };
+    }
 
-                }
-            },
-            { $unwind: '$registros' },
-            // {
-            //     $addFields: {
-            //         'paciente.edad': {
-            //             $divide: [{
-            //                 $subtract: [
-            //                     '$fecha.validacion',
-            //                     '$paciente.fechaNacimiento'
-            //                 ]
-            //             },
-            //             (365 * 24 * 60 * 60 * 1000)]
-            //         }
-            //     }
-            // },
-            {
-                $addFields: {
-                    'registros.paciente.decada': { $trunc: { $divide: ['$registros.paciente.edad', 10] } }
-                }
-            },
-            {
-                $group: {
-                    _id: { decada: '$registros.paciente.decada', sexo: '$registros.paciente.sexo' },
-                    count: { $sum: 1 }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    decada: '$_id.decada',
-                    sexo: '$_id.sexo',
-                    count: '$count'
-                }
+    if (end) {
+        filtros['end'] = { $lte: end.endOf('week').toDate() };
+        postFiltros['end'] = { $lte: end.endOf('day').toDate() };
+    }
+
+    const pipeline = [
+        {
+            $match: {
+                ...filtros,
+                $or: [
+                    { 'concepto.conceptId': conceptId },
+                    { 'concepto.statedAncestors': conceptId }
+                ]
+
             }
-        ];
-        PrestacionesTx.aggregate(pipeline, (err, results) => {
-            if (err) {
-                res.status(422).json(err);
+        },
+        { $unwind: '$registros' },
+        { $match: postFiltros },
+        {
+            $facet: {
+                rangoEtario: [
+                    {
+                        $bucket: {
+                            groupBy: "$registros.paciente.edad.edad",
+                            boundaries: rangoEtario, // [0, 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90],
+                            default: 100,
+                            output: {
+                                "pacientes": { $push: "$registros.paciente" }
+                            }
+                        }
+                    },
+                    { $unwind: '$pacientes' },
+                    { $group: { _id: { decada: '$_id', sexo: '$pacientes.sexo' }, count: { $sum: 1 } } },
+                    {
+                        $project: {
+                            _id: 0,
+                            decada: '$_id.decada',
+                            sexo: '$_id.sexo',
+                            count: '$count'
+                        }
+                    }
+                ],
+                profesionales: [
+                    {
+                        $group: {
+                            _id: '$registros.profesional.id',
+                            count: { $sum: 1 },
+                            profesional: { $first: '$registros.profesional' }
+                        }
+                    },
+                    { $project: { _id: 1, nombre: { $concat: ['$profesional.apellido', ' ', '$profesional.nombre'] }, count: 1 } },
+                    { $sort: { count: -1 } }
+
+                ],
+                prestacion: [
+                    {
+                        $group: {
+                            _id: '$registros.tipoPrestacion.conceptId',
+                            count: { $sum: 1 },
+                            prestacion: { $first: '$registros.tipoPrestacion' }
+                        }
+                    },
+                    { $project: { _id: 1, nombre: '$prestacion.term', count: 1 } },
+                    { $sort: { count: -1 } }
+                ],
+                organizaciones: [
+                    {
+                        $group: {
+                            _id: '$organizacion.id',
+                            count: { $sum: 1 },
+                            organizacion: { $first: '$organizacion' }
+                        }
+                    },
+                    { $project: { _id: 1, nombre: '$organizacion.nombre', count: 1 } },
+                    { $sort: { count: -1 } }
+                ],
+                // fechas: [
+                //     { $addFields: { mes: { $dateToString: { date: '$registros.fecha', format: '%Y-%m' } } } },
+                //     {
+                //         $group: {
+                //             _id: '$mes',
+                //             count: { $sum: 1 },
+                //         }
+                //     },
+                //     { $project: { _id: 1, nombre: '$_id', count: 1 } },
+                //     { $sort: { _id: 1 } }
+
+                // ]
             }
-            res.json(results);
-        });
-
-
-    });
-});
-
-router.get('/rup/maps', function (req, res) {
-    performMongoDbRequest((db) => {
-        // const PrestacionesTx = db.collection('prestacionesTx');
-        const PrestacionesTx = db.collection('prestaciontx2');
-        const conceptId = req.query.conceptId;
-
-        const pipeline = [
-            {
-                $match: {
-                    $or: [
-                        { 'concepto.conceptId': conceptId },
-                        { 'concepto.statedAncestors': conceptId }
-                    ]
-
-                }
-            },
-            { $unwind: '$registros' },
-            {
-                $lookup: {
-                    from: 'pacientes',
-                    localField: 'registros.paciente.id',
-                    foreignField: '_id',
-                    as: 'pacienteData'
-                }
-            },
-            {
-                $addFields: {
-                    'direccion': { $arrayElemAt: ['$pacienteData.direccion', 0] }
-                }
-            },
-            {
-                $lookup: {
-                    from: 'localidades',
-                    localField: 'direccion.ubicacion.localidad.nombre',
-                    foreignField: 'nombre',
-                    as: 'localidad'
-                }
-            },
-            {
-                $project: {
-                    localidad: 1
-                }
-            }
-
-        ];
-        function desvio() {
-            return (Math.floor(Math.random() * 40000) - 20000) / 1000000;
         }
-        PrestacionesTx.aggregate(pipeline, (err, results) => {
-            if (err) {
-                res.status(422).json(err);
-            }
-            const r = results.map(l => {
-                if (l.localidad.length > 0) {
-                    return l.localidad[0].location;
-                } else {
-                    return { "lat": -38.9516784, "lng": -68.0591888 }
-                }
-            }).map(point => {
-                return {
-                    lat: point.lat + desvio(),
-                    lng: point.lng + desvio()
-                }
-            });
-            res.json(r);
-        });
-
-
-    });
+    ];
+    const results = await PrestacionesTx.aggregate(pipeline).toArray();
+    return res.json(results[0]);
 });
+
+router.post('/rup/terms', async function (req, res) {
+    const db = await getConnection();
+    const PrestacionesTx = db.collection('prestaciontx2');
+    const conceptId = req.body.conceptId;
+    const rangoEtario = req.body.rango;
+
+    const filtros = {};
+    const postFiltros = {};
+    const start = getDate(req.body.start);
+    const end = getDate(req.body.end);
+    const organizacion = req.body.organizacion ? ObjectID(req.body.organizacion) : null;
+
+    if (organizacion) {
+        filtros['organizacion.id'] = organizacion;
+    }
+    if (start) {
+        filtros['start'] = { $gte: start.startOf('week').toDate() };
+        postFiltros['start'] = { $gte: start.startOf('day').toDate() };
+    }
+
+    if (end) {
+        filtros['end'] = { $lte: end.endOf('week').toDate() };
+        postFiltros['end'] = { $lte: end.endOf('day').toDate() };
+    }
+
+    const pipeline = [
+        {
+            $match: {
+                ...filtros,
+                $or: [
+                    { 'concepto.conceptId': conceptId }
+                    // { 'concepto.statedAncestors': conceptId }
+                ]
+
+            }
+        },
+        { $unwind: '$registros' },
+        { $match: postFiltros },
+        {
+            $group: {
+                _id: '$registros.term',
+                count: { $sum: 1 }
+            }
+        }
+    ];
+    const results = await PrestacionesTx.aggregate(pipeline).toArray();
+    return res.json(results);
+});
+
+
+router.get('/rup/maps', async function (req, res) {
+    const db = await getConnection();
+    const PrestacionesTx = db.collection('prestaciontx2');
+    const conceptId = req.query.conceptId;
+
+    const pipeline = [
+        {
+            $match: {
+                $or: [
+                    { 'concepto.conceptId': conceptId },
+                    { 'concepto.statedAncestors': conceptId }
+                ]
+
+            }
+        },
+        { $unwind: '$registros' },
+        { $match: { 'registros.paciente.coordenadas': { $ne: null } } },
+        { $project: { 'coordenadas': '$registros.paciente.coordenadas' } }
+
+    ];
+    function desvio() {
+        return (Math.floor(Math.random() * 40000) - 20000) / 1000000;
+    }
+    const results = await PrestacionesTx.aggregate(pipeline).toArray()
+
+    const r = results.map(point => {
+        return {
+            lat: point.coordenadas.lat + desvio(),
+            lng: point.coordenadas.lng + desvio()
+        }
+    });
+    res.json(r);
+
+});
+
+
+async function storeInCache(organizacion, start, end, conceptId, result) {
+    const db = await getConnection();
+    const cache = db.collection('cache');
+    start = start ? start.toDate() : null;
+    end = end ? end.toDate() : null;
+
+    const cacheObj = {
+        organizacion,
+        start,
+        end,
+        conceptId: conceptId,
+        value: result,
+        createdAt: new Date()
+    }
+
+    await cache.insert(cacheObj);
+}
+
+async function findInCache(organizacion, start, end, concepts) {
+    const db = await getConnection();
+    const cache = db.collection('cache');
+
+    start = start ? start.toDate() : null;
+    end = end ? end.toDate() : null;
+
+    const data = await cache.find({
+        organizacion,
+        start,
+        end,
+        conceptId: { $in: concepts }
+    }).toArray();
+    const dt = {};
+    data.forEach(item => dt[item.conceptId] = item.value);
+    return dt;
+}
 
 /*
 -38.951929, -68.059161
