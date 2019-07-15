@@ -467,6 +467,40 @@ router.post('/rup/terms', async function (req, res) {
     return res.json(results);
 });
 
+router.post('/rup/cluster', async function (req, res) {
+    const db = await getConnection();
+    const PrestacionesTx = db.collection('prestaciontx2');
+    const conceptId = req.body.conceptId;
+
+    const pipeline = [
+        {
+            $match: {
+                $or: [
+                    { 'concepto.conceptId': conceptId },
+                    { 'concepto.statedAncestors': conceptId }
+                ]
+
+            }
+        },
+        { $unwind: '$registros' },
+        { $group: { '_id': '$registros.paciente.id' } }
+    ];
+    const results = await PrestacionesTx.aggregate(pipeline).toArray()
+    const ids = results.map(e => ObjectID(e._id));
+
+    const pipeline2 = [
+        {
+            $match: {
+                'registros.paciente.id': { $in: ids }
+            }
+        },
+        { $match: { 'concepto.semanticTag': 'trastorno', 'concepto.conceptId': { $ne: conceptId } } },
+        { $group: { '_id': '$concepto.conceptId', 'nombre': { $first: '$concepto.term' }, count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+    ];
+    const concepts = await PrestacionesTx.aggregate(pipeline2).toArray()
+    return res.json(concepts);
+});
 
 router.get('/rup/maps', async function (req, res) {
     const db = await getConnection();
