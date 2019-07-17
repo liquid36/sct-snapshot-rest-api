@@ -502,10 +502,10 @@ router.post('/rup/cluster', async function (req, res) {
     return res.json(concepts);
 });
 
-router.get('/rup/maps', async function (req, res) {
+router.post('/rup/maps', async function (req, res) {
     const db = await getConnection();
     const PrestacionesTx = db.collection('prestaciontx2');
-    const conceptId = req.query.conceptId;
+    const conceptId = req.body.conceptId;
 
     const pipeline = [
         {
