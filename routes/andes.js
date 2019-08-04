@@ -301,7 +301,17 @@ router.get('/organizaciones', async function (req, res) {
     const Organizaciones = db.collection('organizaciones');
     const orgs = await Organizaciones.find({ nombre: { $regex: expWord, $options: 'i' } }).toArray();
     return res.json(orgs);
-})
+});
+
+router.get('/semanticTags', async function (req, res) {
+    const search = req.query.search;
+    const expWord = removeDiacritics(regExpEscape(search).toLowerCase()) + ".*";
+
+    const db = await getConnection();
+    const semanticTags = db.collection('semanticTags');
+    const items = await semanticTags.find({ _id: { $regex: expWord, $options: 'i' } }).toArray();
+    return res.json(items);
+});
 
 router.post('/rup/demografia', async function (req, res) {
     const db = await getConnection();
@@ -365,16 +375,64 @@ router.post('/rup/demografia', async function (req, res) {
                         }
                     }
                 ],
+                localidades: [
+                    {
+                        $group: {
+                            _id: '$registros.paciente.localidad',
+                            count: { $sum: 1 },
+                            exact: {
+                                $sum: {
+                                    $cond: { if: { $eq: ['$concepto.conceptId', conceptId] }, then: 1, else: 0 }
+                                }
+                            },
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 1,
+                            nombre: '$_id',
+                            count: 1,
+                            exact: 1
+                        }
+                    },
+                    { $sort: { count: -1 } }
+                ],
                 profesionales: [
                     {
                         $group: {
                             _id: '$registros.profesional.id',
                             count: { $sum: 1 },
+                            exact: {
+                                $sum: {
+                                    $cond: { if: { $eq: ['$concepto.conceptId', conceptId] }, then: 1, else: 0 }
+                                }
+                            },
                             profesional: { $first: '$registros.profesional' }
                         }
                     },
-                    { $project: { _id: 1, nombre: { $concat: ['$profesional.apellido', ' ', '$profesional.nombre'] }, count: 1 } },
+                    {
+                        $project: {
+                            _id: 1,
+                            nombre: { $concat: ['$profesional.apellido', ' ', '$profesional.nombre'] },
+                            count: 1,
+                            exact: 1
+                        }
+                    },
                     { $sort: { count: -1 } }
+                ],
+                profesionales_primera: [
+                    {
+                        $group: {
+                            _id: '$registros.paciente.id',
+                            profesional: { $first: '$registros.profesional' }
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: '$profesional.id',
+                            primera: { $sum: 1 }
+                        }
+                    },
 
                 ],
                 prestacion: [
@@ -382,21 +440,46 @@ router.post('/rup/demografia', async function (req, res) {
                         $group: {
                             _id: '$registros.tipoPrestacion.conceptId',
                             count: { $sum: 1 },
+                            exact: {
+                                $sum: {
+                                    $cond: { if: { $eq: ['$concepto.conceptId', conceptId] }, then: 1, else: 0 }
+                                }
+                            },
                             prestacion: { $first: '$registros.tipoPrestacion' }
                         }
                     },
-                    { $project: { _id: 1, nombre: '$prestacion.term', count: 1 } },
+                    { $project: { _id: 1, nombre: '$prestacion.term', count: 1, exact: 1 } },
                     { $sort: { count: -1 } }
+                ],
+                prestacion_primera: [
+                    {
+                        $group: {
+                            _id: '$registros.paciente.id',
+                            prestacion: { $first: '$registros.tipoPrestacion' }
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: '$prestacion.conceptId',
+                            primera: { $sum: 1 }
+                        }
+                    },
+
                 ],
                 organizaciones: [
                     {
                         $group: {
                             _id: '$organizacion.id',
                             count: { $sum: 1 },
+                            exact: {
+                                $sum: {
+                                    $cond: { if: { $eq: ['$concepto.conceptId', conceptId] }, then: 1, else: 0 }
+                                }
+                            },
                             organizacion: { $first: '$organizacion' }
                         }
                     },
-                    { $project: { _id: 1, nombre: '$organizacion.nombre', count: 1 } },
+                    { $project: { _id: 1, nombre: '$organizacion.nombre', count: 1, exact: 1 } },
                     { $sort: { count: -1 } }
                 ],
                 // fechas: [
@@ -415,8 +498,18 @@ router.post('/rup/demografia', async function (req, res) {
         }
     ];
     const results = await PrestacionesTx.aggregate(pipeline).toArray();
+    const data = results[0];
+    combine(data.profesionales, data.profesionales_primera);
+    combine(data.prestacion, data.prestacion_primera);
     return res.json(results[0]);
 });
+
+function combine(listA, listB) {
+    listA.forEach((item) => {
+        itemB = listB.find(i => String(i._id) === String(item._id));
+        item.primera = itemB ? itemB.primera : 0;
+    });
+}
 
 router.post('/rup/terms', async function (req, res) {
     const db = await getConnection();

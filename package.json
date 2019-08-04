@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "PORT=3001 MONGO_DB_CONN=localhost:27018 node app.js"
+    "start": "PORT=3001 MONGO_DB_CONN=localhost:27018 nodemon -q app.js"
   },
   "dependencies": {
     "@google/maps": "^0.5.5",
@@ -26,5 +26,8 @@
     "socket.io": "~1.7.3",
     "svg2png": "^4.1.1",
     "winston": "^2.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.19.1"
   }
 }
