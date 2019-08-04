@@ -173,12 +173,12 @@ router.post('/rup', async function (req, res) {
         let ini, fin, middleStart, middleEnd;
         if (start) {
             ini = start.startOf('day').clone();
-            middleStart = start.clone().endOf('week');
+            middleStart = start.clone().endOf('month');
         }
 
         if (end) {
             fin = end.endOf('day').clone();
-            middleEnd = end.clone().startOf('week');
+            middleEnd = end.clone().startOf('month');
         }
         let data = await makeShortQuery(realConcepts, middleStart, middleEnd, organizacion);
         if (ini) {
@@ -329,12 +329,12 @@ router.post('/rup/demografia', async function (req, res) {
         filtros['organizacion.id'] = organizacion;
     }
     if (start) {
-        filtros['start'] = { $gte: start.startOf('week').toDate() };
+        filtros['start'] = { $gte: start.startOf('month').toDate() };
         postFiltros['start'] = { $gte: start.startOf('day').toDate() };
     }
 
     if (end) {
-        filtros['end'] = { $lte: end.endOf('week').toDate() };
+        filtros['end'] = { $lte: end.endOf('month').toDate() };
         postFiltros['end'] = { $lte: end.endOf('day').toDate() };
     }
 
@@ -527,12 +527,12 @@ router.post('/rup/terms', async function (req, res) {
         filtros['organizacion.id'] = organizacion;
     }
     if (start) {
-        filtros['start'] = { $gte: start.startOf('week').toDate() };
+        filtros['start'] = { $gte: start.startOf('month').toDate() };
         postFiltros['start'] = { $gte: start.startOf('day').toDate() };
     }
 
     if (end) {
-        filtros['end'] = { $lte: end.endOf('week').toDate() };
+        filtros['end'] = { $lte: end.endOf('month').toDate() };
         postFiltros['end'] = { $lte: end.endOf('day').toDate() };
     }
 
@@ -564,7 +564,7 @@ router.post('/rup/cluster', async function (req, res) {
     const db = await getConnection();
     const PrestacionesTx = db.collection('prestaciontx2');
     const conceptId = req.body.conceptId;
-
+    const semanticTags = req.body.semanticTags || ['trastorno'];
     const pipeline = [
         {
             $match: {
@@ -587,7 +587,7 @@ router.post('/rup/cluster', async function (req, res) {
                 'registros.paciente.id': { $in: ids }
             }
         },
-        { $match: { 'concepto.semanticTag': 'trastorno', 'concepto.conceptId': { $ne: conceptId } } },
+        { $match: { 'concepto.semanticTag': { $in: semanticTags }, 'concepto.conceptId': { $ne: conceptId } } },
         { $group: { '_id': '$concepto.conceptId', 'nombre': { $first: '$concepto.term' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } }
     ];
@@ -621,9 +621,16 @@ router.post('/rup/maps', async function (req, res) {
     const results = await PrestacionesTx.aggregate(pipeline).toArray()
 
     const r = results.map(point => {
-        return {
-            lat: point.coordenadas.lat + desvio(),
-            lng: point.coordenadas.lng + desvio()
+        if (point.coordenadas.aprox) {
+            return {
+                lat: point.coordenadas.lat + desvio(),
+                lng: point.coordenadas.lng + desvio()
+            }
+        } else {
+            return {
+                lat: point.coordenadas.lat,
+                lng: point.coordenadas.lng
+            }
         }
     });
     res.json(r);
@@ -676,3 +683,23 @@ async function findInCache(organizacion, start, end, concepts) {
 
 */
 module.exports = router;
+
+
+/**
+ *
+ * Query de concepto con tipo number
+ *
+
+ db.getCollection('prestaciontx2').aggregate([
+{ $match: { 'registros.valorType' : 'number' } },
+{ $group: { _id: '$concepto.conceptId', 'concepto': { $first: '$concepto' } }  },
+{ $replaceRoot: { newRoot: '$concepto' } },
+{ $sort: { 'fsn': 1 } }
+])
+
+db.getCollection('prestaciontx2').aggregate([
+{ $group: { _id: '$concepto.semanticTag', 'total': { $sum: 1 } }  },
+{ $out: 'semanticTags' }
+])
+
+ */
