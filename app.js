@@ -107,6 +107,7 @@ app.use(function (err, req, res, next) {
 
 var cluster = require('cluster');
 var port = process.env.PORT || 3000;
+var host = process.env.HOST || '0.0.0.0';
 
 // if (cluster.isMaster) {
 //     // fs.writeFile(pidFile, process.pid);
@@ -131,7 +132,7 @@ var port = process.env.PORT || 3000;
 //var app = require('express')();
 // app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
 
-var server = app.listen(port, function () {
+var server = app.listen(port, host, function () {
     console.log('Process ' + process.pid + ' is listening in port ' + port + ' to all incoming requests');
 });
 // }
