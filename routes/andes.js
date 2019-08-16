@@ -360,7 +360,7 @@ router.post('/rup/demografia', async function (req, res) {
                             boundaries: rangoEtario, // [0, 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90],
                             default: 100,
                             output: {
-                                "pacientes": { $push: "$registros.paciente" }
+                                "pacientes": { $push: "$registros.paciente" },
                             }
                         }
                     },
@@ -435,6 +435,21 @@ router.post('/rup/demografia', async function (req, res) {
                     },
 
                 ],
+                profesionales_paciente: [
+                    {
+                        $group: {
+                            _id: '$registros.profesional.id',
+                            pacientes: { $addToSet: '$registros.paciente.id' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: true,
+                            pacientes: { $size: '$pacientes' }
+                        }
+                    }
+
+                ],
                 prestacion: [
                     {
                         $group: {
@@ -466,6 +481,21 @@ router.post('/rup/demografia', async function (req, res) {
                     },
 
                 ],
+                prestacion_paciente: [
+                    {
+                        $group: {
+                            _id: '$registros.tipoPrestacion.conceptId',
+                            pacientes: { $addToSet: '$registros.paciente.id' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: true,
+                            pacientes: { $size: '$pacientes' }
+                        }
+                    }
+
+                ],
                 organizaciones: [
                     {
                         $group: {
@@ -482,6 +512,36 @@ router.post('/rup/demografia', async function (req, res) {
                     { $project: { _id: 1, nombre: '$organizacion.nombre', count: 1, exact: 1 } },
                     { $sort: { count: -1 } }
                 ],
+                organizaciones_primera: [
+                    {
+                        $group: {
+                            _id: '$registros.paciente.id',
+                            organizacion: { $first: '$organizacion' }
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: '$organizacion.id',
+                            primera: { $sum: 1 }
+                        }
+                    },
+
+                ],
+                organizaciones_paciente: [
+                    {
+                        $group: {
+                            _id: '$organizacion.id',
+                            pacientes: { $addToSet: '$registros.paciente.id' }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: true,
+                            pacientes: { $size: '$pacientes' }
+                        }
+                    }
+
+                ],
                 // fechas: [
                 //     { $addFields: { mes: { $dateToString: { date: '$registros.fecha', format: '%Y-%m' } } } },
                 //     {
@@ -497,17 +557,30 @@ router.post('/rup/demografia', async function (req, res) {
             }
         }
     ];
-    const results = await PrestacionesTx.aggregate(pipeline).toArray();
+    const results = await PrestacionesTx.aggregate(pipeline, { allowDiskUse: true }).toArray();
     const data = results[0];
-    combine(data.profesionales, data.profesionales_primera);
-    combine(data.prestacion, data.prestacion_primera);
+    combine(data.profesionales, data.profesionales_primera, 'primera');
+    combine(data.profesionales, data.profesionales_paciente, 'pacientes');
+
+    combine(data.prestacion, data.prestacion_primera, 'primera');
+    combine(data.prestacion, data.prestacion_paciente, 'pacientes');
+
+    combine(data.organizaciones, data.organizaciones_primera, 'primera');
+    combine(data.organizaciones, data.organizaciones_paciente, 'pacientes');
+
+    delete data['profesionales_primera'];
+    delete data['profesionales_paciente'];
+    delete data['prestacion_primera'];
+    delete data['prestacion_paciente'];
+    delete data['organizaciones_primera'];
+    delete data['organizaciones_paciente'];
     return res.json(results[0]);
 });
 
-function combine(listA, listB) {
+function combine(listA, listB, key) {
     listA.forEach((item) => {
         itemB = listB.find(i => String(i._id) === String(item._id));
-        item.primera = itemB ? itemB.primera : 0;
+        item[key] = itemB ? itemB[key] : 0;
     });
 }
 
