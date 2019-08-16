@@ -14,7 +14,7 @@ const getConnection = async function () {
         if (databases['andes']) {
             return databases['andes'];
         } else {
-            const db = MongoClient.connect("mongodb://" + mongoConnection + "/andes");
+            const db = MongoClient.connect(mongoConnection);
             databases['andes'] = db;
             return db;
         }
