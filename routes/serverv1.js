@@ -10,7 +10,7 @@ var resourcesCol;
 
 var mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
 
-MongoClient.connect("mongodb://" + mongoConnection + "/server", function(err, db) {
+MongoClient.connect(mongoConnection, function (err, db) {
     if (err) {
         console.warn(err.message);
         process.exit();
@@ -20,15 +20,15 @@ MongoClient.connect("mongodb://" + mongoConnection + "/server", function(err, db
     console.log("Connected to server/resources db.")
 });
 
-router.get('/releases', function(req, res) {
-    resourcesCol.find().toArray(function(err, doc) {
+router.get('/releases', function (req, res) {
+    resourcesCol.find().toArray(function (err, doc) {
         if (err) {
             console.log(err.message);
         }
         if (doc) {
             res.status(200);
             res.header('Content-Type', 'application/json');
-            var result=transform.getManifestsV1(doc);
+            var result = transform.getManifestsV1(doc);
             res.send(result);
         } else {
             res.status(200);
@@ -37,17 +37,17 @@ router.get('/releases', function(req, res) {
     });
 });
 
-router.get('/releases/:id', function(req, res) {
+router.get('/releases/:id', function (req, res) {
     var idParam = ObjectID.createFromHexString(req.params.id);
     if (idParam) {
-        resourcesCol.find({_id: idParam}).nextObject(function(err, doc) {
+        resourcesCol.find({ _id: idParam }).nextObject(function (err, doc) {
             if (err) {
                 console.log(err.message);
             }
             if (doc) {
                 res.status(200);
                 res.header('Content-Type', 'application/json');
-                var result=transform.getManifestV1(doc);
+                var result = transform.getManifestV1(doc);
                 res.send(result);
             } else {
                 res.status(200);
@@ -74,17 +74,17 @@ var sampleManifest = {
     collectionName: "20140731",
     expirationDate: "20150201",
     modules: [
-        {sctid: 900000000000207008, defaultTerm: "SNOMED CT core module"},
-        {sctid: 900000000000012004, defaultTerm: "SNOMED CT model component module"}
+        { sctid: 900000000000207008, defaultTerm: "SNOMED CT core module" },
+        { sctid: 900000000000012004, defaultTerm: "SNOMED CT model component module" }
     ],
     languageRefsets: [
-        {sctid: 900000000000509007, defaultTerm: "US English"},
-        {sctid: 900000000000508004, defaultTerm: "GB English"}
+        { sctid: 900000000000509007, defaultTerm: "US English" },
+        { sctid: 900000000000508004, defaultTerm: "GB English" }
     ],
     refsets: [
-        {sctid: 900000000000497000, defaultTerm: "CTV3 simple map"},
-        {sctid: 446608001, defaultTerm: "ICD-O simple map reference set"},
-        {sctid: 447566000, defaultTerm: "Virtual medicinal product simple reference set"}
+        { sctid: 900000000000497000, defaultTerm: "CTV3 simple map" },
+        { sctid: 446608001, defaultTerm: "ICD-O simple map reference set" },
+        { sctid: 447566000, defaultTerm: "Virtual medicinal product simple reference set" }
     ],
     defaultTermLangCode: "en",
     defaultTermType: 900000000000003001,

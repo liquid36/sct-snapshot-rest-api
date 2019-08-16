@@ -11,7 +11,7 @@ var path = require('path');
 var transform = require("../lib/transform");
 // find the first module to be loaded
 var topModule = module;
-while(topModule.parent)
+while (topModule.parent)
     topModule = topModule.parent;
 var appDir = path.dirname(topModule.filename);
 
@@ -27,13 +27,13 @@ var databases = {};
 
 var mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
 
-var performMongoDbRequest = function(databaseName, callback) {
+var performMongoDbRequest = function (databaseName, callback) {
     if (databases[databaseName]) {
         //console.log("Using cache");
         callback(databases[databaseName]);
     } else {
         //console.log("Connecting");
-        MongoClient.connect("mongodb://" + mongoConnection + "/" + databaseName, function(err, db) {
+        MongoClient.connect(mongoConnection, function (err, db) {
             if (err) {
                 console.warn(err.message);
                 process.exit();
@@ -66,7 +66,7 @@ router.post('/:db/:collection/execute/:language', connectTimeout('120s'), functi
         computeResponse: {}
     };
     if (!results.validation) {
-        if (expression.charAt(0) == "(" && expression.charAt(expression.length-1) == ")") {
+        if (expression.charAt(0) == "(" && expression.charAt(expression.length - 1) == ")") {
             expression = expression.substr(1, expression.length - 2);
             results = expressionsParser.parse(expression, language);
             responseData.paserResponse = results;
@@ -79,13 +79,13 @@ router.post('/:db/:collection/execute/:language', connectTimeout('120s'), functi
         //    language: language
         //});
         var start = process.hrtime();
-        computeGrammarQuery3(results, request.form, req.params.db, collectionName, request.skip, request.limit, function(err, results) {
+        computeGrammarQuery3(results, request.form, req.params.db, collectionName, request.skip, request.limit, function (err, results) {
             if (err) {
                 responseData.computeResponse = err;
                 res.status(500);
                 res.send(responseData);
             } else {
-                var elapsed_time = function(note){
+                var elapsed_time = function (note) {
                     var precision = 0; // 3 decimal places
                     var elapsed = process.hrtime(start)[1] / 1000000; // divide by a million to get nano to milli
                     //console.log(process.hrtime(start)[0] + " s, " + elapsed.toFixed(precision) + " ms - " + note); // print message + time
@@ -110,9 +110,9 @@ router.post('/:db/:collection/execute/:language', connectTimeout('120s'), functi
 
 module.exports = router;
 
-var readConceptReference = function(node, ast) {
+var readConceptReference = function (node, ast) {
     var conceptId;
-    ast.getChildren(node, ast.nodes).forEach(function(referenceChild) {
+    ast.getChildren(node, ast.nodes).forEach(function (referenceChild) {
         if (referenceChild.rule == "conceptId") {
             conceptId = referenceChild.content;
         }
@@ -120,7 +120,7 @@ var readConceptReference = function(node, ast) {
     return conceptId;
 }
 
-var readSimpleExpressionConstraint = function(node, ast) {
+var readSimpleExpressionConstraint = function (node, ast) {
     var condition = {
         condition: node.rule,
         criteria: false,
@@ -128,7 +128,7 @@ var readSimpleExpressionConstraint = function(node, ast) {
         conceptId: false
     };
     if (node.rule == "simpleExpressionConstraint") {
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "constraintOperator") {
                 var constraintOperator = child;
                 var operatorChildren = ast.getChildren(constraintOperator, ast.nodes);
@@ -139,7 +139,7 @@ var readSimpleExpressionConstraint = function(node, ast) {
                 var focusConcept = child;
                 var focusChildren = ast.getChildren(focusConcept, ast.nodes);
                 if (focusChildren.length) {
-                    focusChildren.forEach(function(loopFocusChild) {
+                    focusChildren.forEach(function (loopFocusChild) {
                         if (loopFocusChild.rule == "conceptReference") {
                             condition.conceptId = readConceptReference(loopFocusChild, ast);
                         } else if (loopFocusChild.rule == "memberOf") {
@@ -158,7 +158,7 @@ var readSimpleExpressionConstraint = function(node, ast) {
     return condition;
 };
 
-var readAttribute = function(node, ast) {
+var readAttribute = function (node, ast) {
     var condition = {
         criteria: node.rule,
         cardinality: false,
@@ -169,13 +169,13 @@ var readAttribute = function(node, ast) {
         targetNode: false
     };
     if (node.rule == "attribute") {
-        ast.getChildren(node, ast.nodes).forEach(function(attrChild) {
+        ast.getChildren(node, ast.nodes).forEach(function (attrChild) {
             if (attrChild.rule == "attributeOperator") {
-                ast.getChildren(attrChild, ast.nodes).forEach(function(operator) {
+                ast.getChildren(attrChild, ast.nodes).forEach(function (operator) {
                     condition.attributeOperator = operator.rule;
                 });
             } else if (attrChild.rule == "attributeName") {
-                ast.getChildren(attrChild, ast.nodes).forEach(function(nameChild) {
+                ast.getChildren(attrChild, ast.nodes).forEach(function (nameChild) {
                     if (nameChild.rule == "wildCard") {
                         condition.typeId = "*";
                     } else if (nameChild.rule == "conceptReference") {
@@ -185,7 +185,7 @@ var readAttribute = function(node, ast) {
             } else if (attrChild.rule == "expressionComparisonOperator") {
                 condition.expressionComparisonOperator = attrChild.content;
             } else if (attrChild.rule == "expressionConstraintValue") {
-                ast.getChildren(attrChild, ast.nodes).forEach(function(valueChild) {
+                ast.getChildren(attrChild, ast.nodes).forEach(function (valueChild) {
                     //if (valueChild.rule == "simpleExpressionConstraint") {
                     condition.targetNode = valueChild;
                     //}
@@ -208,7 +208,7 @@ var rulesThatShouldNotBeFollowedIn = [
     "conjunction"
 ];
 
-var computeGrammarQuery3 = function(parserResults, form, databaseName, collectionName, skip, limit, callback) {
+var computeGrammarQuery3 = function (parserResults, form, databaseName, collectionName, skip, limit, callback) {
     var ast = parserResults.simpleTree;
     var root = ast.getRootNode(ast.nodes);
     var computer = {};
@@ -216,11 +216,11 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
         limit: limit,
         skip: skip
     };
-    var exitWithError = function(message) {
+    var exitWithError = function (message) {
         console.log("Error:", message);
-        callback({message: message}, {});
+        callback({ message: message }, {});
     };
-    computer.resolve = function(node, ast, queryPart) {
+    computer.resolve = function (node, ast, queryPart) {
         //console.log(node.rule);
         if (typeof computer[node.rule] == "undefined") {
             exitWithError("Unsupported rule: " + node.rule);
@@ -228,55 +228,55 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
             computer[node.rule](node, ast, queryPart);
         }
     };
-    computer.expressionConstraint = function(node, ast, queryPart) {
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.expressionConstraint = function (node, ast, queryPart) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             computer.resolve(child, ast, queryPart);
         });
     };
-    computer.simpleExpressionConstraint = function(node, ast, queryPart) {
+    computer.simpleExpressionConstraint = function (node, ast, queryPart) {
         node.condition = readSimpleExpressionConstraint(node, ast);
         if (node.condition.memberOf) {
-            queryPart.push({"memberships.refset.conceptId": node.condition.conceptId});
+            queryPart.push({ "memberships.refset.conceptId": node.condition.conceptId });
             if (node.condition.criteria && node.condition.criteria != "self") {
                 exitWithError("Unsupported condition: combined memberOf and hierarchy criteria");
             }
         } else if (node.condition.criteria == "self") {
-            queryPart.push({"conceptId": node.condition.conceptId});
+            queryPart.push({ "conceptId": node.condition.conceptId });
         } else if (node.condition.criteria == "descendantOf") {
             if (form == "stated") {
-                queryPart.push({"statedAncestors": node.condition.conceptId});
+                queryPart.push({ "statedAncestors": node.condition.conceptId });
             } else {
-                queryPart.push({"inferredAncestors": node.condition.conceptId});
+                queryPart.push({ "inferredAncestors": node.condition.conceptId });
             }
         } else if (node.condition.criteria == "descendantOrSelfOf") {
-            var or = {$or: []};
-            or["$or"].push({"conceptId": node.condition.conceptId});
+            var or = { $or: [] };
+            or["$or"].push({ "conceptId": node.condition.conceptId });
             if (form == "stated") {
-                or["$or"].push({"statedAncestors": node.condition.conceptId});
+                or["$or"].push({ "statedAncestors": node.condition.conceptId });
             } else {
-                or["$or"].push({"inferredAncestors": node.condition.conceptId});
+                or["$or"].push({ "inferredAncestors": node.condition.conceptId });
             }
             queryPart.push(or);
         } else if (node.condition.criteria == "ancestorOf") {
             // Not supported right now
-            exitWithError("Unsupported condition: " +node. condition.criteria);
+            exitWithError("Unsupported condition: " + node.condition.criteria);
         } else if (node.condition.criteria == "ancestorOrSelfOf") {
-            queryPart.push({"conceptId": node.condition.conceptId});
+            queryPart.push({ "conceptId": node.condition.conceptId });
             // Not supported right now
             exitWithError("Unsupported condition: " + node.condition.criteria);
         }
     };
-    computer.compoundExpressionConstraint = function(node, ast, queryPart) {
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.compoundExpressionConstraint = function (node, ast, queryPart) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             computer.resolve(child, ast, queryPart);
         });
     };
-    computer.subExpressionConstraint = function(node, ast, queryPart) {
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.subExpressionConstraint = function (node, ast, queryPart) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             result = computer.resolve(child, ast, queryPart);
         });
     };
-    computer.exclusionExpressionConstraint = function(node, ast, queryPart) {
+    computer.exclusionExpressionConstraint = function (node, ast, queryPart) {
         var children = ast.getChildren(node, ast.nodes);
         if (children.length != 3) {
             exitWithError("Problem with exclusionExpressionConstraint: " + node.content);
@@ -286,28 +286,28 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
         computer.resolve(children[0], ast, excl);
         var nor = [];
         computer.resolve(children[2], ast, nor);
-        var not = {$nor: nor};
+        var not = { $nor: nor };
         queryPart.push(not);
     };
-    computer.disjunctionExpressionConstraint = function(node, ast, queryPart) {
-        var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.disjunctionExpressionConstraint = function (node, ast, queryPart) {
+        var or = { $or: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subExpressionConstraint") {
                 computer.resolve(child, ast, or["$or"]);
             }
         });
         queryPart.push(or);
     };
-    computer.conjunctionExpressionConstraint = function(node, ast, queryPart) {
-        var and = {$and:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.conjunctionExpressionConstraint = function (node, ast, queryPart) {
+        var and = { $and: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subExpressionConstraint") {
                 computer.resolve(child, ast, and["$and"]);
             }
         });
         queryPart.push(and);
     };
-    computer.refinedExpressionConstraint = function(node, ast, queryPart) {
+    computer.refinedExpressionConstraint = function (node, ast, queryPart) {
         var children = ast.getChildren(node, ast.nodes);
         if (children.length != 2) {
             exitWithError("Problem with refinedExpressionConstraint: " + node.content);
@@ -317,105 +317,105 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
         computer.resolve(children[1], ast, queryPart);
         //queryPart.push(and);
     };
-    computer.refinement = function(node, ast, queryPart) {
+    computer.refinement = function (node, ast, queryPart) {
         var children = ast.getChildren(node, ast.nodes);
         if (children.length == 1) {
             computer.resolve(children[0], ast, queryPart);
         } else {
             if (children[1].rule == "conjunctionRefinementSet") {
-                var and = {$and:[]};
+                var and = { $and: [] };
                 computer.resolve(children[0], ast, and["$and"]);
                 computer.resolve(children[1], ast, and["$and"]);
                 queryPart.push(and);
             } else if (children[1].rule == "disjunctionRefinementSet") {
-                var or = {$or:[]};
+                var or = { $or: [] };
                 computer.resolve(children[0], ast, or["$or"]);
                 computer.resolve(children[1], ast, or["$or"]);
                 queryPart.push(or);
             }
         }
     };
-    computer.disjunctionRefinementSet = function(node, ast, queryPart) {
-        var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.disjunctionRefinementSet = function (node, ast, queryPart) {
+        var or = { $or: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subRefinement") {
                 computer.resolve(child, ast, or["$or"]);
             }
         });
         queryPart.push(or);
     };
-    computer.conjunctionRefinementSet = function(node, ast, queryPart) {
-        var and = {$and:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.conjunctionRefinementSet = function (node, ast, queryPart) {
+        var and = { $and: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subRefinement") {
                 computer.resolve(child, ast, and["$and"]);
             }
         });
         queryPart.push(and);
     };
-    computer.subRefinement = function(node, ast, queryPart) {
+    computer.subRefinement = function (node, ast, queryPart) {
         //var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             computer.resolve(child, ast, queryPart);
         });
         //queryPart.push(or);
     };
-    computer.attributeSet = function(node, ast, queryPart) {
+    computer.attributeSet = function (node, ast, queryPart) {
         var children = ast.getChildren(node, ast.nodes);
         if (children.length == 1) {
             computer.resolve(children[0], ast, queryPart);
         } else {
             if (children[1].rule == "conjunctionAttributeSet") {
-                var and = {$and:[]};
+                var and = { $and: [] };
                 computer.resolve(children[0], ast, and["$and"]);
                 computer.resolve(children[1], ast, and["$and"]);
                 queryPart.push(and);
             } else if (children[1].rule == "disjunctionAttributeSet") {
-                var or = {$or:[]};
+                var or = { $or: [] };
                 computer.resolve(children[0], ast, or["$or"]);
                 computer.resolve(children[1], ast, or["$or"]);
                 queryPart.push(or);
             }
         }
     };
-    computer.conjunctionAttributeSet = function(node, ast, queryPart) {
-        var and = {$and:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.conjunctionAttributeSet = function (node, ast, queryPart) {
+        var and = { $and: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subAttributeSet") {
                 computer.resolve(child, ast, and["$and"]);
             }
         });
         queryPart.push(and);
     };
-    computer.disjunctionAttributeSet = function(node, ast, queryPart) {
-        var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+    computer.disjunctionAttributeSet = function (node, ast, queryPart) {
+        var or = { $or: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "subAttributeSet") {
                 computer.resolve(child, ast, or["$or"]);
             }
         });
         queryPart.push(or);
     };
-    computer.subAttributeSet = function(node, ast, queryPart) {
+    computer.subAttributeSet = function (node, ast, queryPart) {
         //var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "attribute" || child.rule == "attributeSet") {
                 computer.resolve(child, ast, queryPart);
             }
         });
         //queryPart.push(or);
     };
-    computer.attributeGroup = function(node, ast, queryPart) {
+    computer.attributeGroup = function (node, ast, queryPart) {
         //TODO: Implement cardinality
-        var or = {$or:[]};
-        ast.getChildren(node, ast.nodes).forEach(function(child) {
+        var or = { $or: [] };
+        ast.getChildren(node, ast.nodes).forEach(function (child) {
             if (child.rule == "attributeSet") {
                 computer.resolve(child, ast, or["$or"]);
             }
         });
         queryPart.push(or);
     };
-    computer.attribute = function(node, ast, queryPart) {
+    computer.attribute = function (node, ast, queryPart) {
         var elemMatch = {};
         var condition = readAttribute(node, ast);
         // Process attribute name
@@ -430,8 +430,8 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
             if (condition.attributeOperator) {
                 if (condition.attributeOperator == "descendantOrSelfOf") {
                     elemMatch["$or"] = [];
-                    elemMatch["$or"].push({"type.conceptId" : condition.conceptId});
-                    elemMatch["$or"].push({"typeInferredAncestors" : condition.conceptId});
+                    elemMatch["$or"].push({ "type.conceptId": condition.conceptId });
+                    elemMatch["$or"].push({ "typeInferredAncestors": condition.conceptId });
                 } else if (condition.attributeOperator == "descendantOf") {
                     elemMatch["typeInferredAncestors"] = condition.conceptId;
                 } else {
@@ -456,8 +456,8 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
                     elemMatch["targetMemberships"] = targetExp.conceptId;
                 } else if (targetExp.criteria == "descendantOrSelfOf") {
                     elemMatch["$or"] = [];
-                    elemMatch["$or"].push({"destination.conceptId" : targetExp.conceptId});
-                    elemMatch["$or"].push({"targetInferredAncestors" : targetExp.conceptId});
+                    elemMatch["$or"].push({ "destination.conceptId": targetExp.conceptId });
+                    elemMatch["$or"].push({ "targetInferredAncestors": targetExp.conceptId });
                 } else if (targetExp.criteria == "descendantOf") {
                     elemMatch["targetInferredAncestors"] = targetExp.conceptId;
                 } else {
@@ -469,19 +469,19 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
         }
         if (Object.keys(elemMatch).length > 0) {
             elemMatch["active"] = true;
-            queryPart.push({relationships: {"$elemMatch": elemMatch}});
+            queryPart.push({ relationships: { "$elemMatch": elemMatch } });
         }
     };
 
-    var mongoQuery = {$and:[]};
-    computer.resolve(root, ast,mongoQuery["$and"]);
+    var mongoQuery = { $and: [] };
+    computer.resolve(root, ast, mongoQuery["$and"]);
     //console.log(JSON.stringify(mongoQuery));
     var returnData = {};
-    performMongoDbRequest(databaseName, function(db) {
+    performMongoDbRequest(databaseName, function (db) {
         var collection = db.collection(collectionName);
-        collection.count(mongoQuery, function(err, count) {
+        collection.count(mongoQuery, function (err, count) {
             returnData.total = count;
-            collection.find(mongoQuery,{conceptId:1, fullySpecifiedName:1}, queryOptions, function(err, cursor) {
+            collection.find(mongoQuery, { conceptId: 1, fullySpecifiedName: 1 }, queryOptions, function (err, cursor) {
                 returnData.limit = queryOptions.limit;
                 returnData.skip = queryOptions.skip;
                 returnData.matches = [];
@@ -489,7 +489,7 @@ var computeGrammarQuery3 = function(parserResults, form, databaseName, collectio
                 cursor.toArray(function (err, docs) {
                     if (docs) {
                         //var page = docs.slice(parseInt(skip), parseInt(skip) + parseInt(limit));
-                        var results=transform.getExpressionResultsV1(docs);
+                        var results = transform.getExpressionResultsV1(docs);
                         returnData.matches = results;
                         callback(null, returnData);
                     } else {
