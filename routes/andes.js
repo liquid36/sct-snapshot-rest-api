@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const MongoClient = require('mongodb').MongoClient;
 
-const mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
+const mongoConnection = process.env['ANDES_DB_CONN'] || process.env['MONGO_DB_CONN'] || "localhost:27017";
 const databases = {};
 
 const ObjectID = require('bson').ObjectID;
