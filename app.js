@@ -1,25 +1,14 @@
-var express = require('express');
-var path = require('path');
-// var favicon = require('static-favicon');
-var logger = require('morgan');
-var cookieParser = require('cookie-parser');
-var bodyParser = require('body-parser');
-var MongoClient = require('mongodb').MongoClient;
-var fs = require('fs');
-var pidFile = process.env.PID_FILE || "mongodb-rest.pid";
+const express = require('express');
+const path = require('path');
+const logger = require('morgan');
+const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
 
-var routes = require('./routes/index');
-var snomed = require('./routes/snomed');
-var snomedv1 = require('./routes/snomedv1');
-var util = require('./routes/util');
-var server = require('./routes/server');
-var serverv1 = require('./routes/serverv1');
-var expressions = require('./routes/expressions');
-var expressionsv1 = require('./routes/expressionsv1');
+const snomed = require('./routes/snomed');
+const expressions = require('./routes/expressions');
+const andes = require('./routes/andes');
 
-var andes = require('./routes/andes');
-
-var accessControlConfig = {
+const accessControlConfig = {
     "allowOrigin": "*",
     "allowMethods": "GET,POST,PUT,DELETE,HEAD,OPTIONS"
 };
@@ -27,17 +16,12 @@ var accessControlConfig = {
 //  ************************
 
 var app = express();
-// view engine setu
-// p
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug');
 
-// app.use(favicon());
 app.use(logger('dev'));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(function (req, res, next) {
     var oneof = false;
@@ -65,20 +49,9 @@ app.use(function (req, res, next) {
     }
 });
 
-app.use('/', routes);
 app.use('/api/snomed', snomed);
 app.use('/api/andes', andes);
-app.use('/v2/snomed', snomed);
-app.use('/v1/snomed', snomedv1);
-app.use('/util', util);
-app.use('/server', serverv1);
-app.use("/expressions", expressionsv1);
-app.use('/v2/util', util);
-app.use('/v2/server', server);
-app.use("/v2/expressions", expressions);
-app.use('/v1/util', util);
-app.use('/v1/server', serverv1);
-app.use("/v1/expressions", expressionsv1);
+app.use("/api/expressions", expressions);
 
 /// catch 404 and forward to error handler
 app.use(function (req, res, next) {
@@ -105,43 +78,10 @@ app.use(function (err, req, res, next) {
     res.status(err.status >= 100 && err.status < 600 ? err.code : 500).send(err.message);
 });
 
-var cluster = require('cluster');
-var port = process.env.PORT || 3000;
-var host = process.env.HOST || '0.0.0.0';
+const cluster = require('cluster');
+const port = process.env.PORT || 3000;
+const host = process.env.HOST || '0.0.0.0';
 
-// if (cluster.isMaster) {
-//     // fs.writeFile(pidFile, process.pid);
-//     var numWorkers = require('os').cpus().length;
-//     numWorkers = 1
-//     console.log('Master cluster setting up ' + numWorkers + ' workers...');
-
-//     for (var i = 0; i < numWorkers; i++) {
-//         cluster.fork();
-//     }
-
-//     cluster.on('online', function(worker) {
-//         console.log('Worker ' + worker.process.pid + ' is online');
-//     });
-
-//     cluster.on('exit', function(worker, code, signal) {
-//         console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
-//         console.log('Starting a new worker');
-//         cluster.fork();
-//     });
-// } else {
-//var app = require('express')();
-// app.all('/*', function(req, res) {res.send('process ' + process.pid + ' says hello!').end();})
-
-var server = app.listen(port, host, function () {
+const server = app.listen(port, host, function () {
     console.log('Process ' + process.pid + ' is listening in port ' + port + ' to all incoming requests');
 });
-// }
-
-// var server = require('http').Server(app);
-//
-// server.listen(port);
-//
-// console.log('Express app started on port '+port);
-
-module.exports = app;
-module.exports.accessControlConfig = accessControlConfig;

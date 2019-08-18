@@ -3,13 +3,6 @@ var router = express.Router();
 var winston = require('winston');
 var MongoClient = require('mongodb').MongoClient;
 var snomedLib = require("../lib/snomedv2");
-var apiModelUtility = require("../lib/apiModelUtility");
-
-var logger = new (winston.Logger)({
-    transports: [
-        new (winston.transports.File)({ filename: '/root/concepts-json/node_modules/sct-snapshot-rest-api/search.log' })
-    ]
-});
 
 //console.log("ÁáéÉ\u03A8 --> " + util.removeDiacritics("ÁáéÉ\u03A8"));
 //var regextxt = "^186^1$1/1";
@@ -19,23 +12,6 @@ var databases = {};
 
 var mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
 
-var performMongoDbRequest = function (databaseName, callback) {
-    if (databases[databaseName]) {
-        //console.log("Using cache");
-        callback(databases[databaseName]);
-    } else {
-        //console.log("Connecting");
-        MongoClient.connect(mongoConnection, function (err, db) {
-            if (err) {
-                console.warn(err.message);
-                process.exit();
-            }
-            //console.log("Connection OK")
-            databases[databaseName] = db;
-            callback(db);
-        });
-    }
-}
 
 router.get('/:db/:collection/concepts/:sctid', function (req, res) {
     var options = req.params.options || {};

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "PORT=3001 MONGO_DB_CONN=localhost:27018 nodemon -q app.js"
+    "start": "PORT=3001 MONGO_DB_CONN='mongodb://localhost:27018/es-edition' ANDES_DB_CONN='mongodb://localhost:27018/andes' nodemon -q app.js"
   },
   "dependencies": {
     "@google/maps": "^0.5.5",
