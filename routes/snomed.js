@@ -1,41 +1,8 @@
-var express = require('express');
-var router = express.Router();
-var winston = require('winston');
-var MongoClient = require('mongodb').MongoClient;
-var snomedLib = require("../lib/snomedv2");
+const express = require('express');
+const router = express.Router();
+const snomedLib = require("../lib/snomedv2");
 
-//console.log("ÁáéÉ\u03A8 --> " + util.removeDiacritics("ÁáéÉ\u03A8"));
-//var regextxt = "^186^1$1/1";
-//console.log(regextxt + " --> " + util.regExpEscape(regextxt));
-
-var databases = {};
-
-var mongoConnection = process.env['MONGO_DB_CONN'] || "localhost:27017";
-
-
-router.get('/:db/:collection/concepts/:sctid', function (req, res) {
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
-    snomedLib.getConcept(req.params.db, req.params.collection, req.params.sctid, options, function (err, doc) {
-        if (doc) {
-            res.status(200);
-            res.header('Content-Type', 'application/json');
-            res.send(doc);
-        } else {
-            res.status(200);
-            res.send(err);
-        }
-    });
-});
-
-router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', function (req, res) {
-    var descId = false;
-    if (req.params.descriptionId) descId = req.params.descriptionId;
+function getOptions(req) {
     var options = req.params.options || {};
     var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
     for (o in req.query) {
@@ -47,32 +14,44 @@ router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', func
             }
         }
     }
-    snomedLib.getDescriptions(req.params.db, req.params.collection, req.params.sctid, descId, options, function (err, docs) {
+    return options;
+}
+
+router.get('/:db/:collection/concepts/:sctid', async (req, res) => {
+    const options = getOptions(req);
+    const doc = await snomedLib.getConcept(req.params.db, req.params.collection, req.params.sctid, options);
+    if (doc) {
         res.status(200);
-        res.send(docs);
-    });
+        res.header('Content-Type', 'application/json');
+        res.send(doc);
+    } else {
+        res.status(200);
+        res.send(err);
+    }
 });
 
-router.get('/:db/:collection/concepts/:sctid/relationships?', function (req, res) {
+router.get('/:db/:collection/concepts/:sctid/descriptions/:descriptionId?', async (req, res) => {
+    var descId = false;
+    if (req.params.descriptionId) descId = req.params.descriptionId;
+    const options = getOptions(req);
+    const docs = await snomedLib.getDescriptions(req.params.db, req.params.collection, req.params.sctid, descId, options);
+    res.status(200);
+    res.send(docs);
+});
+
+router.get('/:db/:collection/concepts/:sctid/relationships?', async (req, res) => {
     var form = "all";
     if (req.query["form"]) {
         form = req.query["form"];
     }
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
+    const options = getOptions(req);
 
-    snomedLib.getRelationShips(req.params.db, req.params.collection, req.params.sctid, form, options, function (err, docs) {
-        res.status(200);
-        res.send(docs);
-    });
+    const docs = await snomedLib.getRelationShips(req.params.db, req.params.collection, req.params.sctid, form, options);
+    res.status(200);
+    res.send(docs);
 });
 
-router.get('/:db/:collection/concepts/:sctid/children?', function (req, res) {
+router.get('/:db/:collection/concepts/:sctid/children?', async (req, res) => {
     var idParamStr = req.params.sctid;
     var query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "type.conceptId": "116680003", "active": true } } };
     if (req.query["form"]) {
@@ -101,42 +80,28 @@ router.get('/:db/:collection/concepts/:sctid/children?', function (req, res) {
             };
         }
     }
+    const options = getOptions(req);
 
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
     options["fields"] = { "preferredTerm": 1, "conceptId": 1, "active": 1, "definitionStatus": 1, "module": 1, "isLeafInferred": 1, "isLeafStated": 1, "statedDescendants": 1, "inferredDescendants": 1, "v": 1 };
-    snomedLib.getObject(req.params.db, req.params.collection, query, options, function (err, docs) {
-        res.status(200);
-        if (!docs) docs = [];
-        res.send(docs);
-    });
+    const docs = await snomedLib.getObject(req.params.db, req.params.collection, query, options);
+    res.status(200);
+    if (!docs) docs = [];
+    res.send(docs);
 });
 
-router.get('/:db/:collection/concepts', function (req, res) {
+router.get('/:db/:collection/concepts', async (req, res) => {
     var cts = Array.isArray(req.query.sctids) ? req.query.sctids : [req.query.sctids];
     var query = { conceptId: { $in: cts } };
-    snomedLib.getObject(req.params.db, req.params.collection, query, {}, function (err, docs) {
-        if (!docs) docs = [];
-        res.status(200);
-        res.send(docs);
-    });
+    const docs = await snomedLib.getObject(req.params.db, req.params.collection, query, {});
+    if (!docs) docs = [];
+    res.status(200);
+    res.send(docs);
 });
 
-router.get('/:db/:collection/concepts/:sctid/references?', function (req, res) {
+router.get('/:db/:collection/concepts/:sctid/references?', async (req, res) => {
+    const options = getOptions(req);
     var idParamStr = req.params.sctid;
     var query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "active": true } } };
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
     var typeId = "900000000000011006";
 
     if (req.query["form"]) {
@@ -151,37 +116,23 @@ router.get('/:db/:collection/concepts/:sctid/references?', function (req, res) {
     query = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "characteristicType.conceptId": typeId, "active": true } } };
     options["fields"] = { "relationships": { "$elemMatch": { "destination.conceptId": idParamStr, "characteristicType.conceptId": typeId, "active": true } }, "preferredTerm": 1, "conceptId": 1, "active": 1, "definitionStatus": 1, "effectiveTime": 1, "module": 1, "isLeafInferred": 1, "isLeafStated": 1, "statedDescendants": 1, "inferredDescendants": 1, "v": 1 };
 
-    snomedLib.getObject(req.params.db, req.params.collection, query, options, function (err, docs) {
-        if (!docs) docs = [];
-        res.status(200);
-        res.send(docs);
-    });
+    const docs = await snomedLib.getObject(req.params.db, req.params.collection, query, options);
+    if (!docs) docs = [];
+    res.status(200);
+    res.send(docs);
 });
 
-router.get('/:db/:collection/concepts/:sctid/parents?', function (req, res) {
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
+router.get('/:db/:collection/concepts/:sctid/parents?', async (req, res) => {
+    const options = getOptions(req);
     options["fields"] = { "relationships": 1, "v": 1 };
-    snomedLib.getParents(req.params.db, req.params.collection, req.params.sctid, req.query["form"], options, function (err, docs) {
-        if (!docs) docs = [];
-        res.status(200);
-        res.send(docs);
-    });
+    const docs = await snomedLib.getParents(req.params.db, req.params.collection, req.params.sctid, req.query["form"], options);
+    if (!docs) docs = [];
+    res.status(200);
+    res.send(docs);
 });
 
-router.get('/:db/:collection/concepts/:sctid/members?', function (req, res) {
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
+router.get('/:db/:collection/concepts/:sctid/members?', async (req, res) => {
+    const options = getOptions(req);
     options["fields"] = { "preferredTerm": 1, "conceptId": 1, "active": 1, "definitionStatus": 1, "module": 1, "isLeafInferred": 1, "isLeafStated": 1, "statedDescendants": 1, "inferredDescendants": 1, "v": 1 };
     if (!options.limit) {
         options.limit = 100;
@@ -189,22 +140,12 @@ router.get('/:db/:collection/concepts/:sctid/members?', function (req, res) {
     if (!options.skip) {
         options.skip = 0;
     }
-    snomedLib.getMembers(req.params.db, req.params.collection, req.params.sctid, options, function (err, docs) {
-        if (err) {
-            res.status(400);
-            if (typeof err == 'boolean') {
-                res.send("Error: " + docs);
-            } else {
-                res.send("Error: " + err);
-            }
-        } else {
-            res.status(200);
-            res.send(docs);
-        }
-    });
+    const docs = await snomedLib.getMembers(req.params.db, req.params.collection, req.params.sctid, options);
+    res.status(200);
+    res.send(docs);
 });
 
-router.get('/:db/:collection/descriptions/:sctid?', function (req, res) {
+router.get('/:db/:collection/descriptions/:sctid?', async (req, res) => {
     var idParamStr = null;
     var query = { 'descriptions.descriptionId': 0 };
     var searchMode = "regex";
@@ -321,20 +262,13 @@ router.get('/:db/:collection/descriptions/:sctid?', function (req, res) {
         returnLimit: returnLimit
     };
 
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
-    for (o in req.query) {
-        if (test.indexOf(o) >= 0) {
-            options[o] = JSON.parse(req.query[o]);
-        }
-    }
+    const options = getOptions(req);
     options["limit"] = 10000000;
 
     if (searchMode == "regex" || searchMode == "partialMatching" || searchMode == "fullText") {
-        snomedLib.searchDescription(req.params.db, req.params.collection, filters, query, options, function (err, docs) {
-            res.status(200);
-            res.send(docs);
-        });
+        const docs = await snomedLib.searchDescription(req.params.db, req.params.collection, filters, query, options);
+        res.status(200);
+        res.send(docs);
     } else {
         res.status(400);
         res.send("Error: Search mode not supported (" + req.query["searchMode"] + ")");
@@ -489,17 +423,6 @@ var removeDiacritics = function (str) {
 var regExpEscape = function (s) {
     return String(s).replace(/([-()\[\]{}+?*.$\^|,:#<!\\])/g, '\\$1').
         replace(/\x08/g, '\\x08');
-};
-
-var getTime = function () {
-    var currentdate = new Date();
-    var datetime = "Last Sync: " + currentdate.getDate() + "/" +
-        (currentdate.getMonth() + 1) + "/" +
-        currentdate.getFullYear() + " @ " +
-        currentdate.getHours() + ":" +
-        currentdate.getMinutes() + ":" +
-        currentdate.getSeconds();
-    return datetime;
 };
 
 module.exports = router;
