@@ -42,10 +42,10 @@ app.use(function (req, res, next) {
     }
 
     // intercept OPTIONS method
-    if (oneof && req.method == 'OPTIONS') {
-        res.send(200);
+    if (oneof && req.method === 'OPTIONS') {
+        return res.send(200);
     } else {
-        next();
+        return next();
     }
 });
 

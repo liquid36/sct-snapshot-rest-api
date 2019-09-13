@@ -3,8 +3,8 @@ const router = express.Router();
 const snomedLib = require("../lib/snomedv2");
 
 function getOptions(req) {
-    var options = req.params.options || {};
-    var test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
+    const options = req.params.options || {};
+    const test = ['limit', 'sort', 'fields', 'skip', 'hint', 'explain', 'snapshot', 'timeout'];
     for (o in req.query) {
         if (test.indexOf(o) >= 0) {
             if (o == "limit" || o == "skip") {
