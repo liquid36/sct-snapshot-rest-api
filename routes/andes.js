@@ -16,15 +16,13 @@ function toArray(item) {
 }
 
 router.post('/analytics/:visualization', async function (req, res) {
-    let { target, filter, visualization } = req.body;
+    let { target, filter, visualization, group } = req.body;
     target = toArray(target);
+    group = group && toArray(group);
     filter = filter || {};
     visualization = req.params.visualization;
 
-    const rs = await execQuery(visualization, target, filter);
-
-    console.log(rs)
-
+    const rs = await execQuery(visualization, target, filter, group);
     return res.json(rs);
 
 });
@@ -488,4 +486,14 @@ db.getCollection('prestaciontx2').aggregate([
 { $out: 'semanticTags' }
 ])
 
+ */
+
+
+/**
+ *
+ * PARA LA BASE DE DATOS
+ *
+ * NO OBJECTID
+ * PROFESIONAL NOMBRE TODO JUNTO
+ * EDAD PACIENTE EN SEMANAS
  */
